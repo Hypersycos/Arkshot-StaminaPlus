@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using MultiplayerSync;
+using BepInEx.Logging;
 
 namespace StaminaPlus
 {
@@ -116,6 +117,7 @@ namespace StaminaPlus
                 sprintCost.Value = 0;
             }
 
+            MultiplayerSync.Plugin.OnJoin += Helpers.SetStaminaToMax;
             // Plugin startup logic
             Instance = this;
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
@@ -126,15 +128,12 @@ namespace StaminaPlus
         {
             public static void SetStaminaToMax()
             {
-                MultiplayerSync.Plugin.OnJoin -= Helpers.SetStaminaToMax;
                 if (controlsInstance == null)
                 {
                     return;
                 }
-                Plugin.Instance.Logger.LogInfo("Used event");
                 var stamina = controlsInstance.GetType().GetField("stamina", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                 stamina.SetValue(controlsInstance, maxStamina.Value);
-                controlsInstance = null;
             }
             public static CodeInstruction GetNext(IEnumerator<CodeInstruction> enumerator)
             {
@@ -210,13 +209,15 @@ namespace StaminaPlus
         {
             [HarmonyPatch("Awake")]
             [HarmonyPostfix]
-            static void constructor_Postfix(ref float ___stamina, controls __instance)
+            static void constructor_Postfix(ref float ___stamina, controls __instance, ref PhotonView ___myView)
             {
-                ___stamina = maxStamina.Value;
-                if (!PhotonNetwork.isMasterClient)
+                if (___myView.isMine)
                 {
-                    controlsInstance = __instance;
-                    MultiplayerSync.Plugin.OnJoin += Helpers.SetStaminaToMax;
+                    ___stamina = maxStamina.Value;
+                    if (!PhotonNetwork.isMasterClient)
+                    {
+                        controlsInstance = __instance;
+                    }
                 }
             }
 
