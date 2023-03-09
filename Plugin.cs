@@ -35,6 +35,8 @@ namespace StaminaPlus
 
         public static Plugin Instance;
 
+        private static controls controlsInstance = null;
+
         private void Awake()
         {
             maxStamina.Bind(Config.Bind("General",
@@ -61,31 +63,23 @@ namespace StaminaPlus
                 "StaminaEmptyRegenDelay",
                 1f,
                 "How long stamina regen is disabled for if stamina bottoms out"));
-            staminaEmptyRegenDelay.Bind(Config.Bind("General",
-                "StaminaEmptyRegenDelay",
-                1f,
-                "How long stamina regen is disabled for if stamina bottoms out"));
-            staminaEmptyRegenDelay.Bind(Config.Bind("General",
-                "StaminaEmptyRegenDelay",
-                1f,
-                "How long stamina regen is disabled for if stamina bottoms out"));
 
             dashCost.Bind(Config.Bind("Movement",
                 "DashCost",
                 40f,
-                "The stamina cost of dashing"));
+                "The stamina cost of dashing. Minimum 0."));
             jumpCost.Bind(Config.Bind("Movement",
                 "JumpCost",
                 5f,
-                "The cost of a grounded jump"));
+                "The cost of a grounded jump. Minimum 0."));
             airJumpCost.Bind(Config.Bind("Movement",
                 "AirJumpCost",
                 2.5f,
-                "The increase in stamina cost per air jump"));
+                "The increase in stamina cost per air jump. Minimum 0."));
             sprintCost.Bind(Config.Bind("Movement",
                 "SprintCost",
                 10f,
-                "The cost per second for sprinting"));
+                "The cost per second for sprinting. Minimum 0."));
             sprintDisablesRegen.Bind(Config.Bind("Movement",
                 "SprintDisablesRegen",
                 true,
@@ -93,7 +87,7 @@ namespace StaminaPlus
 
             drawCost.Bind(Config.Bind("Shooting",
                 "DrawCost",
-                9f,
+                3f,
                 "The initial cost per second for drawing an arrow. Negative values can delay the hold cost."));
             holdCost.Bind(Config.Bind("Shooting",
                 "HoldCost",
@@ -105,6 +99,23 @@ namespace StaminaPlus
                 3f,
                 "The extra base stamina regen rate given by coffee."));
 
+            if (dashCost.Value < 0)
+            {
+                dashCost.Value = 0;
+            }
+            if (jumpCost.Value < 0)
+            {
+                jumpCost.Value = 0;
+            }
+            if (airJumpCost.Value < 0)
+            {
+                airJumpCost.Value = 0;
+            }
+            if (sprintCost.Value < 0)
+            {
+                sprintCost.Value = 0;
+            }
+
             // Plugin startup logic
             Instance = this;
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
@@ -113,6 +124,18 @@ namespace StaminaPlus
 
         private static class Helpers
         {
+            public static void SetStaminaToMax()
+            {
+                MultiplayerSync.Plugin.OnJoin -= Helpers.SetStaminaToMax;
+                if (controlsInstance == null)
+                {
+                    return;
+                }
+                Plugin.Instance.Logger.LogInfo("Used event");
+                var stamina = controlsInstance.GetType().GetField("stamina", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                stamina.SetValue(controlsInstance, maxStamina.Value);
+                controlsInstance = null;
+            }
             public static CodeInstruction GetNext(IEnumerator<CodeInstruction> enumerator)
             {
                 if (enumerator.MoveNext())
@@ -187,9 +210,14 @@ namespace StaminaPlus
         {
             [HarmonyPatch("Awake")]
             [HarmonyPostfix]
-            static void constructor_Postfix(ref float ___stamina)
+            static void constructor_Postfix(ref float ___stamina, controls __instance)
             {
                 ___stamina = maxStamina.Value;
+                if (!PhotonNetwork.isMasterClient)
+                {
+                    controlsInstance = __instance;
+                    MultiplayerSync.Plugin.OnJoin += Helpers.SetStaminaToMax;
+                }
             }
 
             [HarmonyTranspiler]
@@ -567,7 +595,7 @@ namespace StaminaPlus
                     yield return instr;
                 }
                 yield return new CodeInstruction(OpCodes.Ldc_R4, 0f);
-                yield return new CodeInstruction(OpCodes.Blt, skipStaminaCheck);
+                yield return new CodeInstruction(OpCodes.Ble, skipStaminaCheck);
 
                 Label elseLabel = generator.DefineLabel();
                 //if sprint disables regen
@@ -621,15 +649,25 @@ namespace StaminaPlus
                 {
                     yield return instr;
                 }
+
+                CodeInstruction temp = GetNext();
+
                 //only check stamina < 0 if initial draw has a stamina cost
                 Label skipStaminaCheck = generator.DefineLabel();
+                bool done = false;
                 foreach (CodeInstruction instr in drawCost.SyncedEntry.GetValueIL())
                 {
+                    if (!done)
+                    {
+                        instr.labels.AddRange(temp.labels);
+                        temp.labels = new() { };
+                    }
                     yield return instr;
                 }
                 yield return new CodeInstruction(OpCodes.Ldc_R4, 0f);
                 yield return new CodeInstruction(OpCodes.Ble, skipStaminaCheck);
-                foreach (CodeInstruction instr in PassX(4))
+                yield return temp.Clone();
+                foreach (CodeInstruction instr in PassX(3))
                 {
                     yield return instr;
                 }
@@ -654,6 +692,8 @@ namespace StaminaPlus
                 yield return new CodeInstruction(OpCodes.Ldc_R4, 0f);
                 yield return ldthis.Clone();
                 yield return CodeInstruction.LoadField(typeof(controls), "holdtime");
+                yield return new CodeInstruction(OpCodes.Ldc_R4, 1f);
+                yield return new CodeInstruction(OpCodes.Sub);
                 foreach (CodeInstruction instr in holdCost.SyncedEntry.GetValueIL())
                 {
                     yield return instr;
@@ -730,7 +770,7 @@ namespace StaminaPlus
                 }
 
                 //add label for branch
-                CodeInstruction temp = GetNext();
+                temp = GetNext();
                 temp.labels.Add(endTakeStamina);
                 yield return temp;
 
