@@ -36,8 +36,6 @@ namespace StaminaPlus
 
         public static Plugin Instance;
 
-        private static controls controlsInstance = null;
-
         private void Awake()
         {
             maxStamina.Bind(Config.Bind("General",
@@ -117,7 +115,6 @@ namespace StaminaPlus
                 sprintCost.Value = 0;
             }
 
-            MultiplayerSync.Plugin.OnJoin += Helpers.SetStaminaToMax;
             // Plugin startup logic
             Instance = this;
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
@@ -126,15 +123,6 @@ namespace StaminaPlus
 
         private static class Helpers
         {
-            public static void SetStaminaToMax()
-            {
-                if (controlsInstance == null)
-                {
-                    return;
-                }
-                var stamina = controlsInstance.GetType().GetField("stamina", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-                stamina.SetValue(controlsInstance, maxStamina.Value);
-            }
             public static CodeInstruction GetNext(IEnumerator<CodeInstruction> enumerator)
             {
                 if (enumerator.MoveNext())
@@ -214,10 +202,6 @@ namespace StaminaPlus
                 if (___myView.isMine)
                 {
                     ___stamina = maxStamina.Value;
-                    if (!PhotonNetwork.isMasterClient)
-                    {
-                        controlsInstance = __instance;
-                    }
                 }
             }
 
