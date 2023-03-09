@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net35</TargetFramework>
@@ -23,6 +23,9 @@
   <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>D:\Programs\Steam\steamapps\common\Arkshot\Arkshot_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="MultiplayerSync">
+      <HintPath>..\MultiplayerSync\bin\Release\net35\MultiplayerSync.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>
