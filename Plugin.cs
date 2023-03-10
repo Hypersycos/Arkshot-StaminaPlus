@@ -115,6 +115,8 @@ namespace StaminaPlus
                 sprintCost.Value = 0;
             }
 
+            MultiplayerSync.MultiplayerSync.RegisterConditionalRequirement(this, () => !MultiplayerSync.MultiplayerSync.AllAreDefault(Config));
+
             // Plugin startup logic
             Instance = this;
             Logger.LogInfo($"Plugin {PluginInfo.PLUGIN_GUID} is loaded!");
